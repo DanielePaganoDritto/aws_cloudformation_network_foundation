@@ -1,0 +1,516 @@
+{
+"AWSTemplateFormatVersion": "2010-09-09",
+"Description": "Template to build the network foundations: vpc, subnet, route tables etc. **WARNING** You will be billed for the AWS resources used if you create a stack from this template.",
+"Metadata": {
+  "Jetstream": {
+    "Date": "2019-09-17 11:03",
+    "Commit": "6ed218e531ce278e2e9f420c7535a95d4d92af0b"
+  },
+  "AWS::CloudFormation::Interface": {
+    "ParameterGroups": [
+      {
+        "Parameters": [
+            "AvailabilityZones",
+            "NumberOfAZs"
+        ],
+        "Label": {
+            "default": "Availability Zone Configuration"
+        }
+      },
+      {
+        "Parameters": [
+          "VpcCidr",
+          "VpcTenancy"  
+        ],
+        "Label": {
+          "default": "VPC Configuration"
+        }
+      },
+      {
+      "Parameters": [
+          "dhcpOptionSetEnable"
+        ],
+        "Label": {
+          "default": "DHCP Configuration"
+        }
+      },
+      {
+      "Parameters": [
+          "internetGatewayEnable"
+        ],
+        "Label": {
+          "default": "Internet Access"
+        }
+      },
+      {
+        "Parameters": [
+          "CreatePublicSubnets",
+          "PublicSubnetACidr",
+          "PublicSubnetBCidr",
+          "CreatePrivateSubnets",
+          "PrivateSubnetACidr",
+          "PrivateSubnetBCidr"
+        ],
+        "Label": {
+          "default": "Subnet Configuration"
+        }
+      }
+    ],
+    "ParameterLabels": {
+      "AvailabilityZones": {
+          "default": "Availability Zones"
+      },
+      "NumberOfAZs": {
+          "default": "Number of Availability Zones"
+      },
+      "VpcCidr": {
+        "default": "VPC CIDR:"
+      },
+      "VpcTenancy": {
+        "default": "VPC Tenancy:"
+      },
+      "dhcpOptionSetEnable": {
+        "default": "Create MyCF-Domain DHCP Option Set:"
+      },
+      "internetGatewayEnable": {
+        "default": "Create Internet Gateway"
+      },
+      "CreatePublicSubnets": {
+          "default": "Create public subnets"
+      },
+      "PublicSubnetAName": {
+        "default": "AZ A Public Subnet Name:"
+      },
+      "PublicSubnetACidr": {
+        "default": "AZ A Public Sunbnet CIDR:"
+      },
+      "PublicSubnetBName": {
+        "default": "AZ B Public Subnet Name:"
+      },
+      "PublicSubnetBCidr": {
+        "default": "AZ B Public Sunbnet CIDR:"
+      },
+      "CreatePrivateSubnets": {
+          "default": "Create private subnets"
+      },
+      "PrivateSubnetAName": {
+        "default": "AZ A Private Subnet Name:"
+      },
+      "PrivateSubnetACidr": {
+        "default": "AZ A Private Sunbnet CIDR:"
+      },
+      "PrivateSubnetBName": {
+        "default": "AZ B Private Subnet Name:"
+      },
+      "PrivateSubnetBCidr": {
+        "default": "AZ B Private Sunbnet CIDR:"
+      },
+      "PublicRtName": {
+        "default": "Public Route Table Name"
+      },
+      "PrivateRtName": {
+        "default": "Private Route Table Name"
+      }
+    }
+  }
+},
+  "Parameters": {
+    "AvailabilityZones": {
+        "Type": "List<AWS::EC2::AvailabilityZone::Name>",
+        "Description": "List of Availability Zones to use for the subnets in the VPC. Note: The logical order is preserved."
+    },
+    "NumberOfAZs": {
+        "AllowedValues": [
+            "2"
+        ],
+        "Default": "2",
+        "Description": "Number of Availability Zones to use in the VPC. This must match your selections in the list of Availability Zones parameter.",
+        "Type": "String"
+    },
+    "VpcCidr": {
+      "Default": "10.0.0.0/16",
+      "Type": "String",
+      "Description": "Address space of the VPC",
+      "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$",
+      "ConstraintDescription": "CIDR block parameter must be in the form x.x.x.x/16-28"
+    },
+    "VpcTenancy": {
+      "Default": "default",
+      "Type": "String",
+      "Description": "The tenancy of the EC2 instances inside the VPC: Default or Dedicated",
+      "AllowedValues": [
+        "default",
+        "dedicated"
+      ]
+    },
+    "dhcpOptionSetEnable": {
+      "Default": "True",
+      "Type": "String",
+      "Description": "Create the Domain DHTP Option Set: mycf-domain.com",
+      "AllowedValues": [
+        "True",
+        "False"
+      ]
+    },
+    "internetGatewayEnable": {
+      "Default": "False",
+      "Type": "String",
+      "Description": "Create an internet gateway for the VPC",
+      "AllowedValues": [
+        "True",
+        "False"
+      ]
+    },
+    "CreatePublicSubnets": {
+      "Default": "True",
+      "Type": "String",
+      "Description": "Create Public Subnets",
+      "AllowedValues": [
+        "True",
+        "False"
+      ]
+    },
+    "CreatePrivateSubnets": {
+      "Default": "True",
+      "Type": "String",
+      "Description": "Create Private Subnets",
+      "AllowedValues": [
+        "True",
+        "False"
+      ]
+    },
+    "PublicSubnetACidr": {
+      "Default": "10.0.0.0/21",
+      "Type": "String",
+      "Description": "Address space of the Public Subnet in the AZ A",
+      "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    },
+    "PublicSubnetBCidr": {
+      "Default": "10.0.0.0/21",
+      "Type": "String",
+      "Description": "Address space of the Public Subnet in the AZ B",
+      "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    },
+    "PrivateSubnetACidr": {
+      "Default": "10.0.0.0/21",
+      "Type": "String",
+      "Description": "Address space of the Ptivate Subnet in the AZ A",
+      "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    },
+    "PrivateSubnetBCidr": {
+      "Default": "10.0.0.0/21",
+      "Type": "String",
+      "Description": "Address space of the Ptivate Subnet in the AZ B",
+      "AllowedPattern": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\/(1[6-9]|2[0-8]))$"
+    }
+  },
+  "Conditions": {
+    "dhcpOptionSetEnabled": {
+      "Fn::Equals": [
+        {
+          "Ref": "dhcpOptionSetEnable"
+        },
+        "True"
+      ]
+    },
+    "internetGatewayEnabled": {
+      "Fn::And": [
+        {"Fn::Equals": [{"Ref": "internetGatewayEnable"},"True"]},
+        {"Fn::Equals": [{"Ref": "CreatePublicSubnets"},"True"]}
+      ]
+    },
+    "publicSubnetsEnabled": {
+        "Fn::Equals": [
+            {
+                "Ref": "CreatePublicSubnets"
+            },
+            "True"
+        ]
+    },
+    "privateSubnetsEnabled": {
+        "Fn::Equals": [
+            {
+                "Ref": "CreatePrivateSubnets"
+            },
+            "True"
+        ]
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : {
+          "Ref": "VpcCidr"
+        },
+        "EnableDnsHostnames" : "true",
+        "EnableDnsSupport" : "true",
+        "InstanceTenancy" : {
+          "Ref": "VpcTenancy"
+        },
+        "Tags" : [ 
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_VPC"]]
+            }
+          }
+        ]
+      }
+    },
+    "CustomDhcpOptions" : {
+      "Type" : "AWS::EC2::DHCPOptions",
+      "Properties" : {
+        "DomainName" : "mycf-domain.com",
+        "DomainNameServers" : [ "10.122.2.220", "10.122.1.219" ],
+        "Tags" : [ { "Key" : "Name", "Value" : "MyFC-Domain" } ]
+      },
+      "Condition": "dhcpOptionSetEnabled"
+    },
+    "CustomDHCPAssociation" : {
+      "Type" : "AWS::EC2::VPCDHCPOptionsAssociation",
+      "Properties" : {
+        "DhcpOptionsId" : {"Ref" : "CustomDhcpOptions" },
+        "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "dhcpOptionSetEnabled"
+    },
+    "PublicSubnetA" : {  
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+          "AvailabilityZone": {
+              "Fn::Select": [
+                  "0",
+                  {
+                      "Ref": "AvailabilityZones"
+                  }
+              ]
+          },
+          "CidrBlock" : {"Ref" : "PublicSubnetACidr"},
+          "MapPublicIpOnLaunch" : "false",
+          "Tags" :  [ { "Key" : "Name",
+              "Value" : {"Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Public_AZ1"]]}
+              }
+          ],
+          "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PublicSubnetB" : {  
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+          "AvailabilityZone": {
+              "Fn::Select": [
+                  "1",
+                  {
+                      "Ref": "AvailabilityZones"
+                  }
+              ]
+          },
+          "CidrBlock" : {"Ref" : "PublicSubnetBCidr"},
+          "MapPublicIpOnLaunch" : "false",
+          "Tags" :  [ { "Key" : "Name",
+                "Value" : {"Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Public_AZ2"]]}
+              }
+          ],
+          "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PrivateSubnetA" : {  
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+          "AvailabilityZone": {
+              "Fn::Select": [
+                  "0",
+                  {
+                      "Ref": "AvailabilityZones"
+                  }
+              ]
+          },
+          "CidrBlock" : {"Ref" : "PrivateSubnetACidr"},
+          "MapPublicIpOnLaunch" : "false",
+          "Tags" :  [ { "Key" : "Name",
+                "Value" : { "Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Private_AZ1"]]}
+              }
+          ],
+          "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "PrivateSubnetB" : {  
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+          "AvailabilityZone": {
+              "Fn::Select": [
+                  "1",
+                  {
+                      "Ref": "AvailabilityZones"
+                  }
+              ]
+          },
+          "CidrBlock" : {"Ref" : "PrivateSubnetBCidr"},
+          "MapPublicIpOnLaunch" : "false",
+          "Tags" :  [ { "Key" : "Name",
+                "Value" : { "Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Private_AZ2"]]}
+              }
+          ],
+          "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "CustomPublicRouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+      "Tags" :  [ { "Key" : "Name",
+            "Value" : {"Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Public_RT"]]}
+          }
+      ],
+      "VpcId" : {"Ref" : "VPC" }
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "CustomPrivateRouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "Tags" :  [ { "Key" : "Name",
+              "Value" : {"Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "CF_Private_RT"]]}
+            }
+        ],
+        "VpcId" : {"Ref" : "VPC" }
+      }
+    },
+    "PublicRTAssociationA": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {"Ref": "CustomPublicRouteTable"},
+          "SubnetId" : {"Ref": "PublicSubnetA"}
+        },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PublicRTAssociationB": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {"Ref": "CustomPublicRouteTable"},
+          "SubnetId" : {"Ref": "PublicSubnetB"}
+        },
+        "Condition": "publicSubnetsEnabled"
+    },
+    "PrivateRTAssociationA": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {"Ref": "CustomPrivateRouteTable"},
+          "SubnetId" : {"Ref": "PrivateSubnetA"}
+        },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "PrivateRTAssociationB": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {"Ref": "CustomPrivateRouteTable"},
+          "SubnetId" : {"Ref": "PrivateSubnetB"}
+        },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "InternetGateway": {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+          "Tags" :  [ { "Key" : "Name",
+                          "Value" : { "Fn::Join" : ["_", [{"Fn::ImportValue": "Project"}, {"Fn::ImportValue": "Environment"}, "IGW"]]}
+                        }
+                    ]
+      },
+      "Condition": "internetGatewayEnabled"
+    },
+    "InternateGatewayAttachment": {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+          "InternetGatewayId" : {"Ref":"InternetGateway"},
+          "VpcId" : {"Ref":"VPC"}
+      },
+      "Condition": "internetGatewayEnabled"
+    },
+    "PublicInternetRoute": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+          "DestinationCidrBlock" : "0.0.0.0/0",
+          "GatewayId" : {"Ref": "InternetGateway"},
+          "RouteTableId" : {"Ref": "CustomPublicRouteTable"}
+        },
+      "Condition": "internetGatewayEnabled"
+    },
+    "S3Endpoint":{
+      "Type" : "AWS::EC2::VPCEndpoint",
+      "Properties" : {
+          "PrivateDnsEnabled" : "false",
+          "RouteTableIds" : [ {"Ref": "CustomPrivateRouteTable"}, "Fn::If": [publicSubnetsEnabled, {"Ref": "CustomPublicRouteTable"}, {"Ref" : "AWS::NoValue"}] ],
+          "ServiceName" : { "Fn::Sub": "com.amazonaws.${AWS::Region}.s3" },
+          "VpcId" : {"Ref" : "VPC"}
+      }
+    },
+  },
+  "Outputs": {
+    "vpcID": {
+      "Description": "VPC ID",
+      "Value": {
+        "Ref": "VPC"
+      }
+    },
+    "PublicSubnetA": {
+      "Description": "AZ A Public Subnet ID",
+      "Value": {
+        "Ref": "PublicSubnetA"
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PublicSubnetACIDR" : {
+      "Description": "AZ A Public Subnet CIDR",
+      "Value": {
+        "Ref": "PublicSubnetACidr"
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PublicSubnetB": {
+      "Description": "AZ B Public Subnet ID",
+      "Value": {
+        "Ref": "PublicSubnetB"
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PublicSubnetBCIDR" : {
+      "Description": "AZ B Public Subnet CIDR",
+      "Value": {
+        "Ref": "PublicSubnetBCidr"
+      },
+      "Condition": "publicSubnetsEnabled"
+    },
+    "PrivateSubnetA": {
+      "Description": "AZ A Private Subnet ID",
+      "Value": {
+        "Ref": "PrivateSubnetA"
+      },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "PrivateSubnetACIDR" : {
+      "Description": "AZ A Private Subnet CIDR",
+      "Value": {
+        "Ref": "PrivateSubnetACidr"
+      },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "PrivateSubnetB": {
+      "Description": "AZ B Private Subnet ID",
+      "Value": {
+        "Ref": "PrivateSubnetB"
+      },
+      "Condition": "privateSubnetsEnabled"
+    },
+    "PrivateSubnetBCIDR" : {
+      "Description": "AZ B Private Subnet CIDR",
+      "Value": {
+        "Ref": "PrivateSubnetBCidr"
+      },
+      "Condition": "privateSubnetsEnabled"
+    }
+  }
+}
