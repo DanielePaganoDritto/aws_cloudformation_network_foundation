@@ -1,4 +1,4 @@
-# cloudformation_network_foundation
+# aws_cloudformation_network_foundation
 This template build an basic AWS Network with the following resources:
 - VPC
 - Subnets (optional): 2 Public, 2 Private subnets.
